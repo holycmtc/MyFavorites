@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useDroppable } from '@dnd-kit/core';
 
@@ -17,37 +18,33 @@ export const NavTab: React.FC<Props> = ({ index, hasContent, isActive, onClick }
     },
   });
 
-  const baseClasses = "relative w-12 h-12 shrink-0 flex items-center justify-center rounded-xl transition-all duration-200 border cursor-pointer select-none outline-none font-mono text-lg font-bold";
-  
-  // Active state (Selected)
-  const activeStyle = isActive 
-    ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-110 z-10" 
-    : "bg-white/80 border-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 hover:scale-105";
-
-  // Visual distinction for empty vs filled pages
-  const contentIndicator = hasContent ? "" : "opacity-60";
-
-  // Drag over state
-  const dropStyle = isOver 
-    ? "ring-4 ring-green-400 scale-110 bg-green-100 border-green-500 text-green-700 z-20" 
-    : "";
-
   return (
     <button
       ref={setNodeRef}
       onClick={onClick}
       className={`
-        ${baseClasses}
-        ${activeStyle}
-        ${contentIndicator}
-        ${dropStyle}
+        w-full group relative flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200
+        ${isActive 
+          ? 'bg-blue-600/90 text-white shadow-lg shadow-blue-600/20' 
+          : 'text-white/50 hover:bg-white/5 hover:text-white'
+        }
+        ${isOver ? 'ring-2 ring-blue-400 scale-105 bg-blue-600/20' : ''}
       `}
     >
-      {index + 1}
+      <div className={`
+        w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm
+        ${isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-white/40 group-hover:text-white'}
+      `}>
+        {index + 1}
+      </div>
+      <span className="hidden md:block font-bold text-sm">看板 {index + 1}</span>
       
-      {/* Has Content Dot */}
       {hasContent && !isActive && (
-          <div className="absolute top-1 right-1 w-2 h-2 bg-blue-400 rounded-full" />
+          <div className="absolute right-4 w-1.5 h-1.5 bg-blue-400 rounded-full hidden md:block" />
+      )}
+
+      {isActive && (
+        <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
       )}
     </button>
   );

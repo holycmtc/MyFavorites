@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { useSortable, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Edit2, X } from 'lucide-react';
+import { Edit2, MoreVertical, Trash2 } from 'lucide-react';
 import { Group } from '../types';
 import { SortableBookmarkItem } from './SortableBookmarkItem';
 
@@ -10,10 +11,9 @@ interface Props {
   onEdit: (group: Group) => void;
   onDeleteGroup: (groupId: string) => void;
   onDeleteItem: (groupId: string, itemId: string) => void;
-  domId?: string;
 }
 
-const BookmarkGroupCard: React.FC<Props> = ({ group, onEdit, onDeleteGroup, onDeleteItem, domId }) => {
+const BookmarkGroupCard: React.FC<Props> = ({ group, onEdit, onDeleteGroup, onDeleteItem }) => {
   const {
     attributes,
     listeners,
@@ -32,81 +32,62 @@ const BookmarkGroupCard: React.FC<Props> = ({ group, onEdit, onDeleteGroup, onDe
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 100 : 1,
   };
 
   return (
     <div
       ref={setNodeRef}
-      id={domId}
       style={style}
-      className={`
-        bg-white/90 backdrop-blur-md rounded-2xl shadow-lg border border-white/60 
-        flex flex-col overflow-hidden group relative transition-all duration-300
-        h-[200px] hover:shadow-xl hover:-translate-y-1
-      `}
+      className="bg-white/10 backdrop-blur-xl rounded-[2rem] border border-white/20 flex flex-col overflow-hidden group shadow-2xl transition-all duration-300 hover:bg-white/15 hover:border-white/30 h-[220px]"
     >
-      {/* Header */}
+      {/* Card Header */}
       <div 
         {...attributes}
         {...listeners}
-        className="px-4 py-3 flex items-center justify-between bg-gradient-to-b from-white/50 to-transparent border-b border-gray-100/50 cursor-grab active:cursor-grabbing"
+        className="px-6 py-4 flex items-center justify-between cursor-grab active:cursor-grabbing shrink-0"
       >
-        <div className="flex items-center gap-2 min-w-0">
-             <h3 className="font-bold text-gray-800 tracking-tight text-lg truncate">
+        <div className="flex items-center gap-3 min-w-0">
+             <div className="w-2 h-6 bg-blue-500 rounded-full" />
+             <h3 className="font-bold text-white text-lg truncate leading-none">
                 {group.title}
              </h3>
-             <span className="text-sm text-gray-400 font-medium bg-gray-100 px-1.5 py-0.5 rounded-full shrink-0">
+             <span className="text-[10px] bg-white/10 text-white/50 px-2 py-0.5 rounded-md font-black uppercase tracking-widest">
                 {group.items.length} 
              </span>
         </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button 
-                className="p-1.5 bg-white text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors border border-gray-200 shadow-sm"
-                onPointerDown={(e) => e.stopPropagation()} 
-                onClick={(e) => {
-                    e.stopPropagation(); 
-                    onEdit(group);
-                }}
-                title="編輯群組"
-            >
-                <Edit2 size={14} />
-            </button>
-            <button 
-                className="p-1.5 bg-white text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors border border-gray-200 shadow-sm"
-                onPointerDown={(e) => e.stopPropagation()} 
-                onClick={(e) => {
-                    e.stopPropagation(); 
-                    onDeleteGroup(group.id);
-                }}
-                title="刪除群組"
-            >
-                <X size={14} />
-            </button>
-        </div>
+        <button 
+            className="p-2 text-white/20 hover:text-white hover:bg-white/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+            onPointerDown={(e) => e.stopPropagation()} 
+            onClick={(e) => { e.stopPropagation(); onEdit(group); }}
+        >
+            <Edit2 size={16} />
+        </button>
       </div>
 
       {/* Grid of Icons */}
-      <SortableContext items={group.items.map(i => i.id)} strategy={rectSortingStrategy}>
-        <div className="flex-1 p-3 overflow-y-auto custom-scrollbar grid grid-cols-4 gap-2 content-start">
-            {group.items.map((item) => (
-                <SortableBookmarkItem 
-                    key={item.id} 
-                    item={item} 
-                    groupId={group.id}
-                    onDeleteItem={onDeleteItem}
-                />
-            ))}
-            
-            {group.items.length === 0 && (
-                <div className="col-span-4 flex flex-col items-center justify-center h-24 text-gray-400 text-sm select-none">
-                    <span>拖曳至此或編輯添加</span>
-                </div>
-            )}
-        </div>
-      </SortableContext>
+      <div className="flex-1 px-4 pb-4 overflow-y-auto custom-scrollbar no-scrollbar">
+          <SortableContext items={group.items.map(i => i.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-4 gap-3 content-start">
+                {group.items.map((item) => (
+                    <SortableBookmarkItem 
+                        key={item.id} 
+                        item={item} 
+                        groupId={group.id}
+                        onDeleteItem={onDeleteItem}
+                    />
+                ))}
+            </div>
+          </SortableContext>
+          
+          {group.items.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs italic">
+                  暫無連結
+              </div>
+          )}
+      </div>
     </div>
   );
 };

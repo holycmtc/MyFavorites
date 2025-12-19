@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   DndContext, 
   closestCenter, 
@@ -10,9 +10,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverEvent,
-  DragOverlay,
-  defaultDropAnimationSideEffects,
-  DropAnimation
+  DragOverlay
 } from '@dnd-kit/core';
 import { 
   arrayMove, 
@@ -20,28 +18,14 @@ import {
   sortableKeyboardCoordinates, 
   rectSortingStrategy 
 } from '@dnd-kit/sortable';
-import { Search, Plus, Star, RefreshCw, Layers } from 'lucide-react';
+import { Search, Plus, Star, RefreshCw, LayoutDashboard, Settings, Bookmark, Trash2, Globe } from 'lucide-react';
 import BookmarkGroupCard from './components/BookmarkGroupCard';
 import EditModal from './components/EditModal';
-import { SortableBookmarkItem } from './components/SortableBookmarkItem';
 import { NavTab } from './components/NavTab';
 import { Group, LinkItem } from './types';
 import { suggestGroupCategory } from './services/geminiService';
 
-const STORAGE_KEY = 'mystart_favorites_data';
-
-const INITIAL_GROUPS: Group[] = [
-  {
-    id: 'g1',
-    title: '常用連結',
-    items: [
-      { id: 'l1', title: 'Google', url: 'https://www.google.com' },
-      { id: 'l2', title: 'ChatGPT', url: 'https://chat.openai.com' },
-      { id: 'l3', title: 'YouTube', url: 'https://www.youtube.com' },
-    ],
-    pageIndex: 0
-  }
-];
+const STORAGE_KEY = 'mystart_favorites_data_v2';
 
 const App: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -53,30 +37,23 @@ const App: React.FC = () => {
     group: null 
   });
   const [isSuggesting, setIsSuggesting] = useState(false);
-  
-  const [bgUrl, setBgUrl] = useState(`https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1920&auto=format&fit=crop`);
+  const [bgUrl, setBgUrl] = useState(`https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1920&auto=format&fit=crop`);
   const [isBgLoading, setIsBgLoading] = useState(false);
   
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeItem, setActiveItem] = useState<LinkItem | null>(null);
   const [draggedGroup, setDraggedGroup] = useState<Group | null>(null);
 
-  // Load data from localStorage
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
       try {
         setGroups(JSON.parse(savedData));
       } catch (e) {
-        setGroups(INITIAL_GROUPS);
+        setGroups([]);
       }
-    } else {
-      setGroups(INITIAL_GROUPS);
     }
     setIsLoaded(true);
   }, []);
 
-  // Save data to localStorage
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
@@ -88,73 +65,19 @@ const App: React.FC = () => {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const stats = useMemo(() => {
+    const totalLinks = groups.reduce((acc, g) => acc + g.items.length, 0);
+    const totalGroups = groups.length;
+    return { totalLinks, totalGroups };
+  }, [groups]);
+
   const changeBackground = () => {
-    if (isBgLoading) return;
     setIsBgLoading(true);
     const randomSig = Math.floor(Math.random() * 100000);
-    const newUrl = `https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1920&auto=format&fit=crop&sig=${randomSig}`;
-    
+    const newUrl = `https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1920&auto=format&fit=crop&sig=${randomSig}`;
     const img = new Image();
-    img.onload = () => {
-      setBgUrl(newUrl);
-      setIsBgLoading(false);
-    };
-    img.onerror = () => {
-      setBgUrl(`https://picsum.photos/seed/${randomSig}/1920/1080`);
-      setIsBgLoading(false);
-    };
+    img.onload = () => { setBgUrl(newUrl); setIsBgLoading(false); };
     img.src = newUrl;
-  };
-
-  const findContainer = (id: string): string | undefined => {
-    if (groups.find((g) => g.id === id)) return id;
-    return groups.find((g) => g.items.some((item) => item.id === id))?.id;
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id as string);
-    if (active.data.current?.type === 'Group') {
-        setDraggedGroup(active.data.current.group);
-    } else if (active.data.current?.type === 'Item') {
-        setActiveItem(active.data.current.item);
-    }
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    if (active.data.current?.type === 'Item') {
-        const activeContainer = findContainer(active.id as string);
-        const overContainer = over.data.current?.type === 'Group' 
-            ? (over.id as string) 
-            : findContainer(over.id as string);
-
-        if (!activeContainer || !overContainer || activeContainer === overContainer) return;
-
-        setGroups((prev) => {
-            const activeGroup = prev.find((g) => g.id === activeContainer);
-            const overGroup = prev.find((g) => g.id === overContainer);
-            if (!activeGroup || !overGroup) return prev;
-
-            const activeItemIndex = activeGroup.items.findIndex((i) => i.id === active.id);
-            const itemToMove = activeGroup.items[activeItemIndex];
-            
-            return prev.map((g) => {
-                if (g.id === activeContainer) return { ...g, items: g.items.filter((i) => i.id !== active.id) };
-                if (g.id === overContainer) {
-                    const newItems = [...g.items];
-                    const overIndex = over.data.current?.type === 'Item' 
-                        ? g.items.findIndex(i => i.id === over.id) 
-                        : g.items.length;
-                    newItems.splice(overIndex >= 0 ? overIndex : g.items.length, 0, itemToMove);
-                    return { ...g, items: newItems };
-                }
-                return g;
-            });
-        });
-    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -171,156 +94,146 @@ const App: React.FC = () => {
              if (oldIdx !== -1 && newIdx !== -1) setGroups(arrayMove(groups, oldIdx, newIdx));
         }
     }
-
-    setActiveId(null);
-    setActiveItem(null);
     setDraggedGroup(null);
   };
 
   const handleCreateGroup = async () => {
       setIsSuggesting(true);
-      let newTitle = "新分類";
-      try {
-         const suggestion = await suggestGroupCategory(groups.flatMap(g => g.items.map(i => i.title)));
-         if (suggestion) newTitle = suggestion;
-      } catch(e) {}
-      setIsSuggesting(false);
-
       const newGroup: Group = {
           id: `g-${Date.now()}`,
-          title: newTitle,
+          title: "新分類",
           items: [],
           pageIndex: activeTabIndex
       };
       setGroups([...groups, newGroup]);
       setModalState({ isOpen: true, group: newGroup });
+      setIsSuggesting(false);
   };
-
-  if (!isLoaded) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">載入中...</div>;
 
   const visibleGroups = searchQuery
     ? groups.filter(g => g.items.some(i => i.title.includes(searchQuery) || i.url.includes(searchQuery)))
     : groups.filter(g => g.pageIndex === activeTabIndex);
 
+  if (!isLoaded) return null;
+
   return (
     <DndContext 
         sensors={sensors} 
         collisionDetection={closestCenter} 
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
+        onDragStart={(e) => { if(e.active.data.current?.type === 'Group') setDraggedGroup(e.active.data.current.group); }}
         onDragEnd={handleDragEnd}
     >
         <div 
-            className="min-h-screen bg-cover bg-center bg-fixed flex flex-col transition-all duration-700" 
+            className="flex h-screen w-screen overflow-hidden bg-cover bg-center transition-all duration-1000" 
             style={{ backgroundImage: `url("${bgUrl}")` }}
         >
-          <div className="flex-1 bg-black/30 w-full flex flex-col backdrop-blur-[2px]">
-            
-            {/* Top Bar */}
-            <div className="pt-10 px-6 pb-6">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white/20 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl">
-                            <Star className="text-yellow-400 fill-yellow-400" size={28} />
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-bold text-white drop-shadow-lg">我的最愛</h1>
-                            <p className="text-white/70 text-sm font-medium">個人化連結控制台</p>
-                        </div>
-                        <button onClick={changeBackground} className="ml-2 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-transform active:scale-90">
-                            <RefreshCw size={18} className={isBgLoading ? 'animate-spin' : ''} />
-                        </button>
-                    </div>
-
-                    <div className="relative w-full max-w-md">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50" size={20} />
-                        <input 
-                            type="text"
-                            className="w-full pl-12 pr-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/40 focus:bg-white/20 focus:outline-none transition-all shadow-2xl"
-                            placeholder="搜尋網址或名稱..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
+          {/* Sidebar */}
+          <aside className="w-20 md:w-64 flex flex-col bg-black/40 backdrop-blur-3xl border-r border-white/10 z-50">
+            <div className="p-6 flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Star className="text-white fill-white" size={20} />
+              </div>
+              <span className="hidden md:block text-xl font-black text-white tracking-tighter">MY START</span>
             </div>
 
-            {/* Tabs */}
-            {!searchQuery && (
-                <div className="px-6 py-2 flex justify-center">
-                    <div className="flex items-center gap-2 p-2 bg-black/40 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-2xl overflow-x-auto no-scrollbar">
-                        {Array.from({ length: 10 }).map((_, i) => (
-                            <NavTab 
-                                key={i}
-                                index={i}
-                                hasContent={groups.some(g => g.pageIndex === i)}
-                                isActive={activeTabIndex === i}
-                                onClick={() => setActiveTabIndex(i)}
-                            />
-                        ))}
-                    </div>
+            <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto no-scrollbar">
+              <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-4 px-2 hidden md:block">我的看板</div>
+              {Array.from({ length: 10 }).map((_, i) => (
+                <NavTab 
+                    key={i}
+                    index={i}
+                    hasContent={groups.some(g => g.pageIndex === i)}
+                    isActive={activeTabIndex === i}
+                    onClick={() => setActiveTabIndex(i)}
+                />
+              ))}
+            </nav>
+
+            <div className="p-6 border-t border-white/10 space-y-4 hidden md:block">
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs font-medium mb-1">總計連結</p>
+                <div className="flex items-end justify-between">
+                  <span className="text-2xl font-bold text-white">{stats.totalLinks}</span>
+                  <Globe className="text-blue-400 mb-1" size={16} />
                 </div>
+              </div>
+              <button 
+                onClick={changeBackground}
+                className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <RefreshCw size={14} className={isBgLoading ? 'animate-spin' : ''} />
+                更換桌布
+              </button>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col bg-black/20 overflow-hidden relative">
+            {/* Header */}
+            <header className="h-20 flex items-center justify-between px-8 bg-white/5 backdrop-blur-md border-b border-white/10 shrink-0">
+                <div className="flex-1 max-w-xl relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="搜尋全站連結..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/30 focus:outline-none focus:bg-white/15 focus:border-blue-500/50 transition-all shadow-inner"
+                  />
+                </div>
+                <div className="flex items-center gap-4 ml-6">
+                   <button 
+                    onClick={handleCreateGroup}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                   >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">新增分類</span>
+                   </button>
+                </div>
+            </header>
+
+            {/* Scrollable Area */}
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+              <div className="max-w-7xl mx-auto">
+                <SortableContext items={visibleGroups.map(g => g.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {visibleGroups.map(group => (
+                      <BookmarkGroupCard 
+                        key={group.id} 
+                        group={group} 
+                        onEdit={(g) => setModalState({ isOpen: true, group: g })}
+                        onDeleteGroup={(id) => setGroups(prev => prev.filter(g => g.id !== id))}
+                        onDeleteItem={(gid, iid) => setGroups(prev => prev.map(g => g.id === gid ? { ...g, items: g.items.filter(i => i.id !== iid) } : g))}
+                      />
+                    ))}
+                    {visibleGroups.length === 0 && !searchQuery && (
+                      <div className="col-span-full py-20 flex flex-col items-center justify-center text-white/30">
+                        <LayoutDashboard size={80} strokeWidth={1} className="mb-4 opacity-20" />
+                        <h3 className="text-xl font-bold">這個分頁空空的</h3>
+                        <p className="text-sm">點擊右上角新增分類來開始佈置</p>
+                      </div>
+                    )}
+                  </div>
+                </SortableContext>
+              </div>
+            </div>
+          </main>
+
+          <EditModal 
+            isOpen={modalState.isOpen}
+            group={modalState.group}
+            onClose={() => setModalState({ isOpen: false, group: null })}
+            onUpdateGroup={(updated) => setGroups(prev => prev.map(g => g.id === updated.id ? updated : g))}
+            onDeleteGroup={(id) => setGroups(prev => prev.filter(g => g.id !== id))}
+          />
+
+          <DragOverlay>
+            {draggedGroup && (
+              <div className="opacity-80 scale-105 rotate-2">
+                <BookmarkGroupCard group={draggedGroup} onEdit={()=>{}} onDeleteGroup={()=>{}} onDeleteItem={()=>{}} />
+              </div>
             )}
-
-            {/* Content Grid */}
-            <div className="flex-1 px-6 py-8 overflow-y-auto">
-                <div className="max-w-7xl mx-auto pb-24">
-                    <SortableContext items={visibleGroups.map(g => g.id)} strategy={rectSortingStrategy}>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {visibleGroups.map(group => (
-                                <BookmarkGroupCard 
-                                    key={group.id} 
-                                    group={group} 
-                                    onEdit={(g) => setModalState({ isOpen: true, group: g })}
-                                    onDeleteGroup={(id) => {
-                                        if(confirm('確定刪除此分類？')) setGroups(prev => prev.filter(g => g.id !== id));
-                                    }}
-                                    onDeleteItem={(gid, iid) => {
-                                        setGroups(prev => prev.map(g => g.id === gid ? { ...g, items: g.items.filter(i => i.id !== iid) } : g));
-                                    }}
-                                />
-                            ))}
-
-                            {!searchQuery && (
-                                <button
-                                    onClick={handleCreateGroup}
-                                    disabled={isSuggesting}
-                                    className="h-[200px] border-2 border-dashed border-white/30 rounded-3xl flex flex-col items-center justify-center text-white/50 hover:text-white hover:border-white/60 hover:bg-white/5 transition-all group"
-                                >
-                                    <div className="p-4 rounded-full bg-white/5 group-hover:scale-110 transition-transform">
-                                        <Plus size={32} />
-                                    </div>
-                                    <span className="mt-3 font-bold text-lg">{isSuggesting ? 'AI 構思中...' : '新增分類框'}</span>
-                                </button>
-                            )}
-                        </div>
-                    </SortableContext>
-                </div>
-            </div>
-
-            {/* Modal */}
-            <EditModal 
-                isOpen={modalState.isOpen}
-                group={modalState.group}
-                onClose={() => setModalState({ isOpen: false, group: null })}
-                onUpdateGroup={(updated) => setGroups(prev => prev.map(g => g.id === updated.id ? updated : g))}
-                onDeleteGroup={(id) => setGroups(prev => prev.filter(g => g.id !== id))}
-            />
-
-            {/* Drag Overlay */}
-            <DragOverlay>
-                {draggedGroup && (
-                    <div className="opacity-80 scale-105">
-                        <BookmarkGroupCard group={draggedGroup} onEdit={()=>{}} onDeleteGroup={()=>{}} onDeleteItem={()=>{}} />
-                    </div>
-                )}
-                {activeItem && (
-                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl border-2 border-blue-500">
-                        <img src={`https://www.google.com/s2/favicons?domain=${new URL(activeItem.url).hostname}&sz=64`} className="w-10 h-10" />
-                    </div>
-                )}
-            </DragOverlay>
-          </div>
+          </DragOverlay>
         </div>
     </DndContext>
   );
