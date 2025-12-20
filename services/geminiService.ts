@@ -1,18 +1,23 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize the GoogleGenAI client with the API key directly from process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+/**
+ * 取得網頁的智慧標題
+ * 遵循 Guideline：在呼叫前才初始化實例，避免模組載入時因 API Key 缺失而崩潰
+ */
 export const getSmartTitle = async (url: string): Promise<string> => {
-  if (!process.env.API_KEY) return '';
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("API Key 尚未配置，跳過 AI 標題生成");
+    return '';
+  }
   
   try {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `I have a URL: "${url}". Please provide a short, concise title (max 3 words) in Traditional Chinese that describes this website. Do not include quotes.`,
+      contents: `我有一個網址： "${url}"。請為這個網站提供一個非常簡短、精煉的中文標題（最多 5 個字）。直接回傳標題文字，不要包含引號或解釋。`,
     });
-    // Use .text property directly
     return response.text.trim();
   } catch (error) {
     console.error("Gemini API Error:", error);
@@ -20,15 +25,20 @@ export const getSmartTitle = async (url: string): Promise<string> => {
   }
 };
 
+/**
+ * 根據現有標題建議分類名稱
+ */
 export const suggestGroupCategory = async (titles: string[]): Promise<string> => {
-    if (!process.env.API_KEY) return '新分類';
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return '新分類';
+
     try {
+        const ai = new GoogleGenAI({ apiKey });
         const list = titles.length > 0 ? titles.join(', ') : '常用連結';
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Given this list of website titles: [${list}], suggest a single short category name (Traditional Chinese, max 4 chars) for a bookmark folder.`,
+            contents: `根據以下網站標題列表：[${list}]，請建議一個適合的中文分類名稱（最多 4 個字）。只回傳名稱。`,
         });
-        // Use .text property directly
         return response.text.trim();
     } catch (error) {
         return '新分類';
