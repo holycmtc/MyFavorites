@@ -16,7 +16,7 @@ import {
   sortableKeyboardCoordinates, 
   rectSortingStrategy 
 } from '@dnd-kit/sortable';
-import { Search, Plus, Star, RefreshCw, LayoutDashboard, Globe, Download, Upload, Image as ImageIcon, ChevronRight } from 'lucide-react';
+import { Search, Plus, Star, RefreshCw, LayoutDashboard, Globe, Download, Upload, Image as ImageIcon, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import BookmarkGroupCard from './components/BookmarkGroupCard';
 import EditModal from './components/EditModal';
 import { NavTab } from './components/NavTab';
@@ -25,12 +25,41 @@ import { Group } from './types';
 const STORAGE_KEY = 'mystart_favorites_data_v2';
 const BG_STORAGE_KEY = 'mystart_selected_bg';
 
-// 精選桌布庫
+// 精選桌布庫 - 使用穩定的 Unsplash ID
 const WALLPAPER_COLLECTIONS = [
-  { id: 'nature', label: '自然', query: 'nature,landscape' },
-  { id: 'city', label: '城市', query: 'city,architecture' },
-  { id: 'minimal', label: '極簡', query: 'minimalist,clean' },
-  { id: 'abstract', label: '抽象', query: 'abstract,gradient' },
+  { 
+    id: 'nature', 
+    label: '自然', 
+    images: [
+      'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1920&auto=format&fit=crop'
+    ]
+  },
+  { 
+    id: 'city', 
+    label: '城市', 
+    images: [
+      'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=1920&auto=format&fit=crop'
+    ]
+  },
+  { 
+    id: 'abstract', 
+    label: '抽象', 
+    images: [
+      'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1574169208507-84376144848b?q=80&w=1920&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1567095761054-7a02e69e5c43?q=80&w=1920&auto=format&fit=crop'
+    ]
+  }
 ];
 
 const App: React.FC = () => {
@@ -45,12 +74,13 @@ const App: React.FC = () => {
   const [bgUrl, setBgUrl] = useState(`https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1920&auto=format&fit=crop`);
   const [isBgLoading, setIsBgLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(WALLPAPER_COLLECTIONS[0]);
+  const [customBgUrl, setCustomBgUrl] = useState('');
+  const [bgError, setBgError] = useState(false);
   
   const [draggedGroup, setDraggedGroup] = useState<Group | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // 載入連結資料
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
       try {
@@ -59,13 +89,10 @@ const App: React.FC = () => {
         setGroups([]);
       }
     }
-    
-    // 載入上次選擇的桌布
     const savedBg = localStorage.getItem(BG_STORAGE_KEY);
     if (savedBg) {
       setBgUrl(savedBg);
     }
-    
     setIsLoaded(true);
   }, []);
 
@@ -86,20 +113,34 @@ const App: React.FC = () => {
     return { totalLinks, totalGroups };
   }, [groups]);
 
-  // 更換背景並儲存
   const changeBackground = (url: string) => {
+    if (!url) return;
     setIsBgLoading(true);
+    setBgError(false);
     const img = new Image();
     img.onload = () => { 
         setBgUrl(url); 
         localStorage.setItem(BG_STORAGE_KEY, url);
         setIsBgLoading(false); 
     };
+    img.onerror = () => {
+        setIsBgLoading(false);
+        setBgError(true);
+        setTimeout(() => setBgError(false), 3000);
+    };
     img.src = url;
   };
 
+  const handleCustomBgSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (customBgUrl.trim()) {
+      changeBackground(customBgUrl.trim());
+      setCustomBgUrl('');
+    }
+  };
+
   const shuffleRandomBackground = () => {
-    const randomSig = Math.floor(Math.random() * 100000);
+    const randomSig = Math.floor(Math.random() * 1000);
     const newUrl = `https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1920&auto=format&fit=crop&sig=${randomSig}`;
     changeBackground(newUrl);
   };
@@ -129,7 +170,6 @@ const App: React.FC = () => {
         if (Array.isArray(importedGroups)) {
           if (confirm('匯入將會覆蓋目前的設定，確定要繼續嗎？')) {
             setGroups(importedGroups);
-            alert('匯入成功！');
           }
         }
       } catch (error) {
@@ -156,7 +196,7 @@ const App: React.FC = () => {
     setDraggedGroup(null);
   };
 
-  const handleCreateGroup = async () => {
+  const handleCreateGroup = () => {
       const newGroup: Group = {
           id: `g-${Date.now()}`,
           title: "新分類",
@@ -174,51 +214,42 @@ const App: React.FC = () => {
   if (!isLoaded) return null;
 
   return (
-    <DndContext 
-        sensors={sensors} 
-        collisionDetection={closestCenter} 
-        onDragStart={(e) => { if(e.active.data.current?.type === 'Group') setDraggedGroup(e.active.data.current.group); }}
-        onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(e) => { if(e.active.data.current?.type === 'Group') setDraggedGroup(e.active.data.current.group); }} onDragEnd={handleDragEnd}>
         <div 
-            className="flex h-screen w-screen overflow-hidden bg-cover bg-center transition-all duration-1000 ease-in-out" 
+            className="flex h-screen w-screen overflow-hidden bg-cover bg-center transition-all duration-1000 ease-in-out relative" 
             style={{ backgroundImage: `url("${bgUrl}")` }}
         >
+          {/* Overlay for better readability */}
+          <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+
           {/* Sidebar */}
-          <aside className="w-20 md:w-64 flex flex-col bg-black/50 backdrop-blur-3xl border-r border-white/10 z-50">
+          <aside className="w-20 md:w-64 flex flex-col bg-black/60 backdrop-blur-3xl border-r border-white/10 z-50 relative">
             <div className="p-6 flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
                 <Star className="text-white fill-white" size={20} />
               </div>
-              <span className="hidden md:block text-xl font-black text-white tracking-tighter uppercase italic">My Start</span>
+              <span className="hidden md:block text-xl font-black text-white tracking-tighter italic">MY DASHBOARD</span>
             </div>
 
             <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto no-scrollbar">
-              <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-4 px-2 hidden md:block">切換分頁</div>
               {Array.from({ length: 10 }).map((_, i) => (
-                <NavTab 
-                    key={i}
-                    index={i}
-                    hasContent={groups.some(g => g.pageIndex === i)}
-                    isActive={activeTabIndex === i}
-                    onClick={() => setActiveTabIndex(i)}
-                />
+                <NavTab key={i} index={i} hasContent={groups.some(g => g.pageIndex === i)} isActive={activeTabIndex === i} onClick={() => setActiveTabIndex(i)} />
               ))}
             </nav>
 
-            {/* Desktop Only Tools Section */}
-            <div className="p-4 border-t border-white/10 space-y-4 hidden md:block overflow-hidden">
+            <div className="p-4 border-t border-white/10 space-y-4 hidden md:block overflow-hidden bg-black/20">
               
               {/* Wallpaper Hub */}
-              <div className="space-y-2">
-                  <div className="flex items-center justify-between px-2">
-                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">個人化桌布</span>
-                    <button onClick={shuffleRandomBackground} className="text-blue-400 hover:text-blue-300 transition-colors" title="隨機切換">
-                        <RefreshCw size={12} className={isBgLoading ? 'animate-spin' : ''} />
+              <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                      <ImageIcon size={12} /> 個人化桌布
+                    </span>
+                    <button onClick={shuffleRandomBackground} className={`text-blue-400 hover:text-blue-300 transition-all ${isBgLoading ? 'animate-spin' : ''}`} title="隨機切換">
+                        <RefreshCw size={12} />
                     </button>
                   </div>
                   
-                  {/* Category Pills */}
                   <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
                       {WALLPAPER_COLLECTIONS.map(cat => (
                           <button 
@@ -231,41 +262,34 @@ const App: React.FC = () => {
                       ))}
                   </div>
 
-                  {/* Thumbnail Row */}
                   <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-                      {[1, 2, 3, 4, 5].map(i => {
-                          const thumbUrl = `https://images.unsplash.com/photo-${1500000000000 + (i * 100000)}?q=80&w=200&auto=format&fit=crop&sig=${selectedCategory.id}${i}`;
-                          const fullUrl = `https://source.unsplash.com/featured/1920x1080?${selectedCategory.query}&sig=${selectedCategory.id}${i}`;
-                          return (
-                              <button 
-                                key={i}
-                                onClick={() => changeBackground(fullUrl)}
-                                className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0 hover:border-blue-500/50 transition-all active:scale-90"
-                              >
-                                  <img src={thumbUrl} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-opacity" alt="preview" />
-                              </button>
-                          );
-                      })}
+                      {selectedCategory.images.map((url, i) => (
+                          <button 
+                            key={i}
+                            onClick={() => changeBackground(url)}
+                            className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0 hover:border-blue-500 hover:scale-105 transition-all active:scale-95"
+                          >
+                            <img src={url} className="w-full h-full object-cover opacity-60 hover:opacity-100" alt="p" loading="lazy" />
+                          </button>
+                      ))}
                   </div>
-              </div>
 
-              {/* Data & Info */}
-              <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-white/40 text-[10px] font-bold uppercase">系統統計</span>
-                    <Globe className="text-blue-400" size={12} />
-                </div>
-                <div className="flex gap-4">
-                    <div>
-                        <p className="text-[10px] text-white/30">連結</p>
-                        <p className="text-lg font-black text-white">{stats.totalLinks}</p>
+                  {/* Custom URL Input */}
+                  <form onSubmit={handleCustomBgSubmit} className="relative group">
+                    <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-blue-400 transition-colors" size={10} />
+                    <input 
+                      type="text" 
+                      placeholder="貼上桌布網址..."
+                      value={customBgUrl}
+                      onChange={(e) => setCustomBgUrl(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-7 pr-2 text-[10px] text-white placeholder-white/20 focus:outline-none focus:bg-white/10 focus:border-blue-500/50 transition-all"
+                    />
+                  </form>
+                  {bgError && (
+                    <div className="flex items-center gap-1.5 text-red-400 text-[10px] font-bold animate-pulse">
+                      <AlertCircle size={10} /> 圖片網址無效
                     </div>
-                    <div className="w-px h-8 bg-white/10 mt-2" />
-                    <div>
-                        <p className="text-[10px] text-white/30">分類</p>
-                        <p className="text-lg font-black text-white">{stats.totalGroups}</p>
-                    </div>
-                </div>
+                  )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -281,14 +305,14 @@ const App: React.FC = () => {
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col bg-black/20 overflow-hidden relative">
+          <main className="flex-1 flex flex-col overflow-hidden relative z-10">
             {/* Header */}
-            <header className="h-20 flex items-center justify-between px-8 bg-white/5 backdrop-blur-md border-b border-white/10 shrink-0">
+            <header className="h-20 flex items-center justify-between px-8 bg-black/20 backdrop-blur-md border-b border-white/10 shrink-0">
                 <div className="flex-1 max-w-xl relative group">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-blue-400 transition-colors" size={18} />
                   <input 
                     type="text" 
-                    placeholder="搜尋連結或網站名稱..."
+                    placeholder="搜尋您的連結..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/20 focus:outline-none focus:bg-white/10 focus:border-blue-500/30 transition-all shadow-inner"
@@ -320,10 +344,10 @@ const App: React.FC = () => {
                       />
                     ))}
                     {visibleGroups.length === 0 && !searchQuery && (
-                      <div className="col-span-full py-32 flex flex-col items-center justify-center text-white/20 animate-pulse">
-                        <LayoutDashboard size={100} strokeWidth={0.5} className="mb-6" />
-                        <h3 className="text-2xl font-black tracking-tight uppercase">Dashboard Empty</h3>
-                        <p className="text-sm font-medium">點擊右上角新增按鈕開始您的旅程</p>
+                      <div className="col-span-full py-32 flex flex-col items-center justify-center text-white/20">
+                        <LayoutDashboard size={100} strokeWidth={0.5} className="mb-6 opacity-30" />
+                        <h3 className="text-2xl font-black tracking-tight uppercase">這個分頁目前是空的</h3>
+                        <p className="text-sm font-medium">點擊右上角「新增分類」來佈置您的看板</p>
                       </div>
                     )}
                   </div>
