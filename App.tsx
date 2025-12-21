@@ -8,8 +8,6 @@ import {
   useSensor, 
   useSensors, 
   DragEndEvent,
-  DragStartEvent,
-  DragOverEvent,
   DragOverlay
 } from '@dnd-kit/core';
 import { 
@@ -18,14 +16,22 @@ import {
   sortableKeyboardCoordinates, 
   rectSortingStrategy 
 } from '@dnd-kit/sortable';
-import { Search, Plus, Star, RefreshCw, LayoutDashboard, Settings, Bookmark, Trash2, Globe, Download, Upload } from 'lucide-react';
+import { Search, Plus, Star, RefreshCw, LayoutDashboard, Globe, Download, Upload, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import BookmarkGroupCard from './components/BookmarkGroupCard';
 import EditModal from './components/EditModal';
 import { NavTab } from './components/NavTab';
-import { Group, LinkItem } from './types';
-import { suggestGroupCategory } from './services/geminiService';
+import { Group } from './types';
 
 const STORAGE_KEY = 'mystart_favorites_data_v2';
+const BG_STORAGE_KEY = 'mystart_selected_bg';
+
+// 精選桌布庫
+const WALLPAPER_COLLECTIONS = [
+  { id: 'nature', label: '自然', query: 'nature,landscape' },
+  { id: 'city', label: '城市', query: 'city,architecture' },
+  { id: 'minimal', label: '極簡', query: 'minimalist,clean' },
+  { id: 'abstract', label: '抽象', query: 'abstract,gradient' },
+];
 
 const App: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -36,14 +42,15 @@ const App: React.FC = () => {
     isOpen: false, 
     group: null 
   });
-  const [isSuggesting, setIsSuggesting] = useState(false);
   const [bgUrl, setBgUrl] = useState(`https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1920&auto=format&fit=crop`);
   const [isBgLoading, setIsBgLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(WALLPAPER_COLLECTIONS[0]);
   
   const [draggedGroup, setDraggedGroup] = useState<Group | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // 載入連結資料
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
       try {
@@ -52,6 +59,13 @@ const App: React.FC = () => {
         setGroups([]);
       }
     }
+    
+    // 載入上次選擇的桌布
+    const savedBg = localStorage.getItem(BG_STORAGE_KEY);
+    if (savedBg) {
+      setBgUrl(savedBg);
+    }
+    
     setIsLoaded(true);
   }, []);
 
@@ -72,16 +86,24 @@ const App: React.FC = () => {
     return { totalLinks, totalGroups };
   }, [groups]);
 
-  const changeBackground = () => {
+  // 更換背景並儲存
+  const changeBackground = (url: string) => {
     setIsBgLoading(true);
-    const randomSig = Math.floor(Math.random() * 100000);
-    const newUrl = `https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1920&auto=format&fit=crop&sig=${randomSig}`;
     const img = new Image();
-    img.onload = () => { setBgUrl(newUrl); setIsBgLoading(false); };
-    img.src = newUrl;
+    img.onload = () => { 
+        setBgUrl(url); 
+        localStorage.setItem(BG_STORAGE_KEY, url);
+        setIsBgLoading(false); 
+    };
+    img.src = url;
   };
 
-  // 匯出資料功能
+  const shuffleRandomBackground = () => {
+    const randomSig = Math.floor(Math.random() * 100000);
+    const newUrl = `https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1920&auto=format&fit=crop&sig=${randomSig}`;
+    changeBackground(newUrl);
+  };
+
   const handleExportData = () => {
     const dataStr = JSON.stringify(groups, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -96,30 +118,23 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // 匯入資料功能
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
         const importedGroups = JSON.parse(content);
-
-        // 簡單的驗證
-        if (Array.isArray(importedGroups) && (importedGroups.length === 0 || (importedGroups[0].id && importedGroups[0].items))) {
+        if (Array.isArray(importedGroups)) {
           if (confirm('匯入將會覆蓋目前的設定，確定要繼續嗎？')) {
             setGroups(importedGroups);
             alert('匯入成功！');
           }
-        } else {
-          alert('匯入失敗：檔案格式不正確');
         }
       } catch (error) {
-        alert('匯入失敗：無法解析 JSON 檔案');
+        alert('匯入失敗：格式錯誤');
       }
-      // 重置 input 以便下次選擇同一檔案
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
@@ -128,7 +143,6 @@ const App: React.FC = () => {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
-
     if (active.data.current?.type === 'Group') {
         if (over.data.current?.type === 'Tab') {
              const targetIdx = over.data.current.index;
@@ -143,7 +157,6 @@ const App: React.FC = () => {
   };
 
   const handleCreateGroup = async () => {
-      setIsSuggesting(true);
       const newGroup: Group = {
           id: `g-${Date.now()}`,
           title: "新分類",
@@ -152,7 +165,6 @@ const App: React.FC = () => {
       };
       setGroups([...groups, newGroup]);
       setModalState({ isOpen: true, group: newGroup });
-      setIsSuggesting(false);
   };
 
   const visibleGroups = searchQuery
@@ -169,20 +181,20 @@ const App: React.FC = () => {
         onDragEnd={handleDragEnd}
     >
         <div 
-            className="flex h-screen w-screen overflow-hidden bg-cover bg-center transition-all duration-1000" 
+            className="flex h-screen w-screen overflow-hidden bg-cover bg-center transition-all duration-1000 ease-in-out" 
             style={{ backgroundImage: `url("${bgUrl}")` }}
         >
           {/* Sidebar */}
-          <aside className="w-20 md:w-64 flex flex-col bg-black/40 backdrop-blur-3xl border-r border-white/10 z-50">
+          <aside className="w-20 md:w-64 flex flex-col bg-black/50 backdrop-blur-3xl border-r border-white/10 z-50">
             <div className="p-6 flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
                 <Star className="text-white fill-white" size={20} />
               </div>
-              <span className="hidden md:block text-xl font-black text-white tracking-tighter">MY START</span>
+              <span className="hidden md:block text-xl font-black text-white tracking-tighter uppercase italic">My Start</span>
             </div>
 
             <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto no-scrollbar">
-              <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-4 px-2 hidden md:block">我的看板</div>
+              <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-4 px-2 hidden md:block">切換分頁</div>
               {Array.from({ length: 10 }).map((_, i) => (
                 <NavTab 
                     key={i}
@@ -194,49 +206,77 @@ const App: React.FC = () => {
               ))}
             </nav>
 
-            <div className="p-6 border-t border-white/10 space-y-3 hidden md:block">
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/5 mb-2">
-                <p className="text-white/40 text-xs font-medium mb-1">總計連結</p>
-                <div className="flex items-end justify-between">
-                  <span className="text-2xl font-bold text-white">{stats.totalLinks}</span>
-                  <Globe className="text-blue-400 mb-1" size={16} />
+            {/* Desktop Only Tools Section */}
+            <div className="p-4 border-t border-white/10 space-y-4 hidden md:block overflow-hidden">
+              
+              {/* Wallpaper Hub */}
+              <div className="space-y-2">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">個人化桌布</span>
+                    <button onClick={shuffleRandomBackground} className="text-blue-400 hover:text-blue-300 transition-colors" title="隨機切換">
+                        <RefreshCw size={12} className={isBgLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                  
+                  {/* Category Pills */}
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
+                      {WALLPAPER_COLLECTIONS.map(cat => (
+                          <button 
+                            key={cat.id}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`whitespace-nowrap px-2 py-1 rounded-md text-[10px] font-bold transition-all ${selectedCategory.id === cat.id ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+                          >
+                            {cat.label}
+                          </button>
+                      ))}
+                  </div>
+
+                  {/* Thumbnail Row */}
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                      {[1, 2, 3, 4, 5].map(i => {
+                          const thumbUrl = `https://images.unsplash.com/photo-${1500000000000 + (i * 100000)}?q=80&w=200&auto=format&fit=crop&sig=${selectedCategory.id}${i}`;
+                          const fullUrl = `https://source.unsplash.com/featured/1920x1080?${selectedCategory.query}&sig=${selectedCategory.id}${i}`;
+                          return (
+                              <button 
+                                key={i}
+                                onClick={() => changeBackground(fullUrl)}
+                                className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0 hover:border-blue-500/50 transition-all active:scale-90"
+                              >
+                                  <img src={thumbUrl} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-opacity" alt="preview" />
+                              </button>
+                          );
+                      })}
+                  </div>
+              </div>
+
+              {/* Data & Info */}
+              <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/40 text-[10px] font-bold uppercase">系統統計</span>
+                    <Globe className="text-blue-400" size={12} />
+                </div>
+                <div className="flex gap-4">
+                    <div>
+                        <p className="text-[10px] text-white/30">連結</p>
+                        <p className="text-lg font-black text-white">{stats.totalLinks}</p>
+                    </div>
+                    <div className="w-px h-8 bg-white/10 mt-2" />
+                    <div>
+                        <p className="text-[10px] text-white/30">分類</p>
+                        <p className="text-lg font-black text-white">{stats.totalGroups}</p>
+                    </div>
                 </div>
               </div>
 
-              {/* Data Tools */}
               <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={handleExportData}
-                    className="py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border border-white/5"
-                    title="匯出備份 (JSON)"
-                  >
-                    <Download size={14} />
-                    <span>匯出</span>
+                  <button onClick={handleExportData} className="py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-white/5">
+                    <Download size={14} /> 匯出
                   </button>
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border border-white/5"
-                    title="匯入資料 (JSON)"
-                  >
-                    <Upload size={14} />
-                    <span>匯入</span>
+                  <button onClick={() => fileInputRef.current?.click()} className="py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-white/5">
+                    <Upload size={14} /> 匯入
                   </button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleImportData} 
-                    accept=".json" 
-                    className="hidden" 
-                  />
+                  <input type="file" ref={fileInputRef} onChange={handleImportData} accept=".json" className="hidden" />
               </div>
-
-              <button 
-                onClick={changeBackground}
-                className="w-full py-3 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 border border-blue-500/20"
-              >
-                <RefreshCw size={14} className={isBgLoading ? 'animate-spin' : ''} />
-                更換桌布
-              </button>
             </div>
           </aside>
 
@@ -244,23 +284,23 @@ const App: React.FC = () => {
           <main className="flex-1 flex flex-col bg-black/20 overflow-hidden relative">
             {/* Header */}
             <header className="h-20 flex items-center justify-between px-8 bg-white/5 backdrop-blur-md border-b border-white/10 shrink-0">
-                <div className="flex-1 max-w-xl relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={18} />
+                <div className="flex-1 max-w-xl relative group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-blue-400 transition-colors" size={18} />
                   <input 
                     type="text" 
-                    placeholder="搜尋全站連結..."
+                    placeholder="搜尋連結或網站名稱..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/30 focus:outline-none focus:bg-white/15 focus:border-blue-500/50 transition-all shadow-inner"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/20 focus:outline-none focus:bg-white/10 focus:border-blue-500/30 transition-all shadow-inner"
                   />
                 </div>
                 <div className="flex items-center gap-4 ml-6">
                    <button 
                     onClick={handleCreateGroup}
-                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl flex items-center gap-2 shadow-xl shadow-blue-600/20 transition-all active:scale-95"
                    >
                     <Plus size={18} />
-                    <span className="hidden sm:inline">新增分類</span>
+                    <span className="hidden sm:inline text-sm">新增分類</span>
                    </button>
                 </div>
             </header>
@@ -269,7 +309,7 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
               <div className="max-w-7xl mx-auto">
                 <SortableContext items={visibleGroups.map(g => g.id)} strategy={rectSortingStrategy}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                     {visibleGroups.map(group => (
                       <BookmarkGroupCard 
                         key={group.id} 
@@ -280,10 +320,10 @@ const App: React.FC = () => {
                       />
                     ))}
                     {visibleGroups.length === 0 && !searchQuery && (
-                      <div className="col-span-full py-20 flex flex-col items-center justify-center text-white/30">
-                        <LayoutDashboard size={80} strokeWidth={1} className="mb-4 opacity-20" />
-                        <h3 className="text-xl font-bold">這個分頁空空的</h3>
-                        <p className="text-sm">點擊右上角新增分類來開始佈置</p>
+                      <div className="col-span-full py-32 flex flex-col items-center justify-center text-white/20 animate-pulse">
+                        <LayoutDashboard size={100} strokeWidth={0.5} className="mb-6" />
+                        <h3 className="text-2xl font-black tracking-tight uppercase">Dashboard Empty</h3>
+                        <p className="text-sm font-medium">點擊右上角新增按鈕開始您的旅程</p>
                       </div>
                     )}
                   </div>
@@ -302,7 +342,7 @@ const App: React.FC = () => {
 
           <DragOverlay>
             {draggedGroup && (
-              <div className="opacity-80 scale-105 rotate-2">
+              <div className="opacity-90 scale-105">
                 <BookmarkGroupCard group={draggedGroup} onEdit={()=>{}} onDeleteGroup={()=>{}} onDeleteItem={()=>{}} />
               </div>
             )}
