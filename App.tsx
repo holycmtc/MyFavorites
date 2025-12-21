@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   DndContext, 
   closestCenter, 
@@ -18,7 +18,7 @@ import {
   sortableKeyboardCoordinates, 
   rectSortingStrategy 
 } from '@dnd-kit/sortable';
-import { Search, Plus, Star, RefreshCw, LayoutDashboard, Settings, Bookmark, Trash2, Globe } from 'lucide-react';
+import { Search, Plus, Star, RefreshCw, LayoutDashboard, Settings, Bookmark, Trash2, Globe, Download, Upload } from 'lucide-react';
 import BookmarkGroupCard from './components/BookmarkGroupCard';
 import EditModal from './components/EditModal';
 import { NavTab } from './components/NavTab';
@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [isBgLoading, setIsBgLoading] = useState(false);
   
   const [draggedGroup, setDraggedGroup] = useState<Group | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
@@ -78,6 +79,50 @@ const App: React.FC = () => {
     const img = new Image();
     img.onload = () => { setBgUrl(newUrl); setIsBgLoading(false); };
     img.src = newUrl;
+  };
+
+  // 匯出資料功能
+  const handleExportData = () => {
+    const dataStr = JSON.stringify(groups, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const date = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.download = `mystart_backup_${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // 匯入資料功能
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedGroups = JSON.parse(content);
+
+        // 簡單的驗證
+        if (Array.isArray(importedGroups) && (importedGroups.length === 0 || (importedGroups[0].id && importedGroups[0].items))) {
+          if (confirm('匯入將會覆蓋目前的設定，確定要繼續嗎？')) {
+            setGroups(importedGroups);
+            alert('匯入成功！');
+          }
+        } else {
+          alert('匯入失敗：檔案格式不正確');
+        }
+      } catch (error) {
+        alert('匯入失敗：無法解析 JSON 檔案');
+      }
+      // 重置 input 以便下次選擇同一檔案
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -149,17 +194,45 @@ const App: React.FC = () => {
               ))}
             </nav>
 
-            <div className="p-6 border-t border-white/10 space-y-4 hidden md:block">
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+            <div className="p-6 border-t border-white/10 space-y-3 hidden md:block">
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/5 mb-2">
                 <p className="text-white/40 text-xs font-medium mb-1">總計連結</p>
                 <div className="flex items-end justify-between">
                   <span className="text-2xl font-bold text-white">{stats.totalLinks}</span>
                   <Globe className="text-blue-400 mb-1" size={16} />
                 </div>
               </div>
+
+              {/* Data Tools */}
+              <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={handleExportData}
+                    className="py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border border-white/5"
+                    title="匯出備份 (JSON)"
+                  >
+                    <Download size={14} />
+                    <span>匯出</span>
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border border-white/5"
+                    title="匯入資料 (JSON)"
+                  >
+                    <Upload size={14} />
+                    <span>匯入</span>
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImportData} 
+                    accept=".json" 
+                    className="hidden" 
+                  />
+              </div>
+
               <button 
                 onClick={changeBackground}
-                className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                className="w-full py-3 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 border border-blue-500/20"
               >
                 <RefreshCw size={14} className={isBgLoading ? 'animate-spin' : ''} />
                 更換桌布
